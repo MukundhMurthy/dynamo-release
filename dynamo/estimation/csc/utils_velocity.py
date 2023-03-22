@@ -1,3 +1,5 @@
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 import statsmodels.api as sm
 from scipy.optimize import least_squares
@@ -8,50 +10,34 @@ from ...tools.moments import strat_mom
 from ...tools.utils import elem_prod, find_extreme
 
 
-def sol_u(t, u0, alpha, beta):
+def sol_u(t: np.ndarray, u0: float, alpha: float, beta: float) -> np.ndarray:
     """The analytical solution of unspliced mRNA kinetics.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    u0: float
-        Initial value of u.
-    alpha: float
-        Transcription rate.
-    beta: float
-        Splicing rate constant.
+    Args:
+        t: A vector of time points.
+        u0: Initial value of u.
+        alpha: Transcription rate.
+        beta: Splicing rate constant.
 
-    Returns
-    -------
-    u: :class:`~numpy.ndarray`
-        Unspliced mRNA counts at given time points.
+    Returns:
+        u: Unspliced mRNA counts at given time points.
     """
     return u0 * np.exp(-beta * t) + alpha / beta * (1 - np.exp(-beta * t))
 
 
-def sol_u_2p(t, u0, t1, alpha0, alpha1, beta):
+def sol_u_2p(t: np.ndarray, u0: float, t1: np.ndarray, alpha0: float, alpha1: float, beta: float) -> np.ndarray:
     """The combined 2-piece analytical solution of unspliced mRNA kinetics.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points for both steady state and stimulation labeling.
-    u0: float
-        Initial value of u.
-    t1: :class:`~numpy.ndarray`
-        The time point when the cells switch from steady state to stimulation.
-    alpha0: float
-        Transcription rate for steady state labeling.
-    alpha1: float
-        Transcription rate for stimulation based labeling.
-    beta: float
-        Splicing rate constant.
+    Args:
+        t: A vector of time points for both steady state and stimulation labeling.
+        u0: Initial value of u.
+        t1: The time point when the cells switch from steady state to stimulation.
+        alpha0: Transcription rate for steady state labeling.
+        alpha1: Transcription rate for stimulation based labeling.
+        beta: Splicing rate constant.
 
-    Returns
-    -------
-    u: :class:`~numpy.ndarray`
-        Unspliced mRNA counts at given time points.
+    Returns:
+        u: Unspliced mRNA counts at given time points.
     """
     u1 = sol_u(t1, u0, alpha0, beta)
     u_pre = sol_u(t[t <= t1], u0, alpha0, beta)
@@ -60,28 +46,19 @@ def sol_u_2p(t, u0, t1, alpha0, alpha1, beta):
     return np.concatenate((u_pre, u_aft))
 
 
-def sol_s(t, s0, u0, alpha, beta, gamma):
+def sol_s(t: np.ndarray, s0: float, u0: float, alpha: float, beta: float, gamma: float) -> np.ndarray:
     """The analytical solution of spliced mRNA kinetics.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    s0: float
-        Initial value of s.
-    u0: float
-        Initial value of u.
-    alpha: float
-        Transcription rate.
-    beta: float
-        Splicing rate constant.
-    gamma: float
-        Degradation rate constant for spliced mRNA.
+    Args:
+        t: A vector of time points.
+        s0: Initial value of s.
+        u0: Initial value of u.
+        alpha: Transcription rate.
+        beta: Splicing rate constant.
+        gamma: Degradation rate constant for spliced mRNA.
 
-    Returns
-    -------
-    s: :class:`~numpy.ndarray`
-        Spliced mRNA counts at given time points.
+    Returns:
+        s: Spliced mRNA counts at given time points.
     """
     exp_gt = np.exp(-gamma * t)
     if beta == gamma:
@@ -95,38 +72,26 @@ def sol_s(t, s0, u0, alpha, beta, gamma):
     return s
 
 
-def sol_p(t, p0, s0, u0, alpha, beta, gamma, eta, delta):
+def sol_p(
+    t: np.ndarray, p0: float, s0: float, u0: float, alpha: float, beta: float, gamma: float, eta: float, delta: float
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """The analytical solution of protein kinetics.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    p0: float
-        Initial value of p.
-    s0: float
-        Initial value of s.
-    u0: float
-        Initial value of u.
-    alpha: float
-        Transcription rate.
-    beta: float
-        Splicing rate constant.
-    gamma: float
-        Degradation rate constant for spliced mRNA.
-    eta: float
-        Synthesis rate constant for protein.
-    delta: float
-        Degradation rate constant for protein.
+    Args:
+        t: A vector of time points.
+        p0: Initial value of p.
+        s0: Initial value of s.
+        u0: Initial value of u.
+        alpha: Transcription rate.
+        beta: Splicing rate constant.
+        gamma: Degradation rate constant for spliced mRNA.
+        eta: Synthesis rate constant for protein.
+        delta: Degradation rate constant for protein.
 
-    Returns
-    -------
-    p: :class:`~numpy.ndarray`
-        Protein counts at given time points.
-    s: :class:`~numpy.ndarray`
-        Spliced mRNA counts at given time points.
-    u: :class:`~numpy.ndarray`
-        Unspliced mRNA counts at given time points.
+    Returns:
+        p: Protein counts at given time points.
+        s: Spliced mRNA counts at given time points.
+        u: Unspliced mRNA counts at given time points.
     """
     u = sol_u(t, u0, alpha, beta)
     s = sol_s(t, s0, u0, alpha, beta, gamma)
@@ -137,21 +102,16 @@ def sol_p(t, p0, s0, u0, alpha, beta, gamma, eta, delta):
     return p, s, u
 
 
-def solve_gamma(t, old, total):
+def solve_gamma(t: float, old: Union[np.ndarray, csr_matrix], total: Union[np.ndarray, csr_matrix]) -> float:
     """Analytical solution to calculate gamma (degradation rate) using first-order degradation kinetics.
 
-    Parameters
-    ----------
-    t: `float`
-        Metabolic labeling time period.
-    old: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of old RNA amount in each cell
-    total: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of total RNA amount in each cell
+    Args:
+        t: Metabolic labeling time period.
+        old: A vector of old RNA amount in each cell
+        total: A vector of total RNA amount in each cell
 
-    Returns
-    -------
-    Returns the degradation rate (gamma)
+    Returns:
+        Returns the degradation rate (gamma)
     """
 
     old, total = np.mean(old), np.mean(total)
@@ -160,25 +120,18 @@ def solve_gamma(t, old, total):
     return gamma
 
 
-def solve_alpha_2p(t0, t1, alpha0, beta, u1):
+def solve_alpha_2p(t0: float, t1: float, alpha0: float, beta: float, u1: Union[np.ndarray, csr_matrix]) -> float:
     """Given known steady state alpha and beta, solve stimulation alpha for a mixed steady state and stimulation labeling experiment.
 
-    Parameters
-    ----------
-    t0: `float`
-        Time period for steady state labeling.
-    t1: `float`
-        Time period for stimulation labeling.
-    alpha0: `float`
-        steady state transcription rate calculated from one-shot experiment mode.
-    beta: `float`
-        steady state (and simulation) splicing rate calculated from one-shot experiment mode.
-    u1: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of labeled RNA amount in each cell observed at time t0 + t1.
+    Args:
+        t0: Time period for steady state labeling.
+        t1: Time period for stimulation labeling.
+        alpha0: steady state transcription rate calculated from one-shot experiment mode.
+        beta: steady state (and stimulation) splicing rate calculated from one-shot experiment mode.
+        u1: A vector of labeled RNA amount in each cell observed at time t0 + t1.
 
-    Returns
-    -------
-    Returns the transcription rate (alpha1) for the stimulation period in the data.
+    Returns:
+        Returns the transcription rate (alpha1) for the stimulation period in the data.
     """
 
     u1 = np.mean(u1)
@@ -193,26 +146,21 @@ def solve_alpha_2p(t0, t1, alpha0, beta, u1):
     return alpha1
 
 
-def solve_alpha_2p_mat(t0, t1, alpha0, beta, u1):
+def solve_alpha_2p_mat(
+    t0: np.ndarray, t1: np.ndarray, alpha0: np.ndarray, beta: np.ndarray, u1: Union[np.ndarray, csr_matrix]
+) -> Tuple[csr_matrix, csr_matrix, csr_matrix]:
     """Given known steady state alpha and beta, solve stimulation alpha for a mixed steady state and stimulation
     labeling experiment in a matrix form.
 
-    Parameters
-    ----------
-    t0: :class:`~numpy.ndarray`
-        Time period for steady state labeling for each cell.
-    t1: :class:`~numpy.ndarray`
-        Time period for stimulation labeling for each cell.
-    alpha0: :class:`~numpy.ndarray`
-        steady state transcription rate calculated from one-shot experiment mode for each gene.
-    beta: :class:`~numpy.ndarray`
-        steady state (and simulation) splicing rate calculated from one-shot experiment mode for each gene.
-    u1: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of labeled RNA amount in each cell observed at time t0 + t1.
+    Args:
+        t0: Time period for steady state labeling for each cell.
+        t1: Time period for stimulation labeling for each cell.
+        alpha0: steady state transcription rate calculated from one-shot experiment mode for each gene.
+        beta: steady state (and simulation) splicing rate calculated from one-shot experiment mode for each gene.
+        u1: A vector of labeled RNA amount in each cell observed at time t0 + t1.
 
-    Returns
-    -------
-    Returns the transcription rate (alpha1) for the stimulation period in the data.
+    Returns:
+        Returns the transcription rate (alpha1) for the stimulation period in the data.
     """
 
     alpha0 = np.repeat(alpha0.reshape((-1, 1)), u1.shape[1], axis=1)
@@ -232,30 +180,29 @@ def solve_alpha_2p_mat(t0, t1, alpha0, beta, u1):
     return csr_matrix(u0), csr_matrix(u_new), csr_matrix(alpha1)
 
 
-def fit_linreg(x, y, mask=None, intercept=False, r2=True):
+def fit_linreg(
+    x: Union[np.ndarray, csr_matrix],
+    y: Union[np.ndarray, csr_matrix],
+    mask: Optional[np.ndarray] = None,
+    intercept: bool = False,
+    r2: bool = True,
+) -> Union[Tuple[float, float], Tuple[float, float, float, float]]:
     """Simple linear regression: y = kx + b.
 
-    Arguments
-    ---------
-    x: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of independent variables.
-    y: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of dependent variables.
-    intercept: bool
-        If using steady state assumption for fitting, then:
+    Args:
+    x: A vector of independent variables.
+    y: A vector of dependent variables.
+    mask: A boolean mask vector with false values indicating variables to ignore
+    intercept: If using steady state assumption for fitting, then:
         True -- the linear regression is performed with an unfixed intercept;
         False -- the linear regresssion is performed with a fixed zero intercept
+    r2: Indicates whether or not to return r2
 
-    Returns
-    -------
-    k: float
-        The estimated slope.
-    b: float
-        The estimated intercept.
-    r2: float
-        Coefficient of determination or r square calculated with the extreme data points.
-    all_r2: float
-        The r2 calculated using all data points.
+    Returns:
+        k: The estimated slope.
+        b: The estimated intercept.
+        r2: Coefficient of determination or r square calculated with the extreme data points.
+        all_r2: The r2 calculated using all data points.
     """
     x = x.A if issparse(x) else x
     y = y.A if issparse(y) else y
@@ -297,32 +244,29 @@ def fit_linreg(x, y, mask=None, intercept=False, r2=True):
         return k, b
 
 
-def fit_linreg_robust(x, y, mask=None, intercept=False, r2=True, est_method="rlm"):
+def fit_linreg_robust(
+    x: Union[np.ndarray, csr_matrix],
+    y: Union[np.ndarray, csr_matrix],
+    mask: Optional[np.ndarray] = None,
+    intercept: bool = False,
+    r2: bool = True,
+    est_method: str = "rlm",
+) -> Union[Tuple[float, float], Tuple[float, float, float, float]]:
     """Apply robust linear regression of y w.r.t x.
 
-    Arguments
-    ---------
-    x: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of independent variables.
-    y: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of dependent variables.
-    intercept: bool
-        If using steady state assumption for fitting, then:
-        True -- the linear regression is performed with an unfixed intercept;
-        False -- the linear regresssion is performed with a fixed zero intercept.
-    est_method: str (default: `rlm`)
-        The linear regression estimation method that will be used.
+    Args:
+        x: A vector of independent variables.
+        y: A vector of dependent variables.
+        intercept: If using steady state assumption for fitting, then:
+            True -- the linear regression is performed with an unfixed intercept;
+            False -- the linear regresssion is performed with a fixed zero intercept.
+        est_method: The linear regression estimation method that will be used.
 
-    Returns
-    -------
-    k: float
-        The estimated slope.
-    b: float
-        The estimated intercept.
-    r2: float
-        Coefficient of determination or r square calculated with the extreme data points.
-    all_r2: float
-        The r2 calculated using all data points.
+    Returns:
+        k: The estimated slope.
+        b: The estimated intercept.
+        r2: Coefficient of determination or r square calculated with the extreme data points.
+        all_r2: The r2 calculated using all data points.
     """
 
     x = x.A if issparse(x) else x
@@ -380,24 +324,26 @@ def fit_linreg_robust(x, y, mask=None, intercept=False, r2=True, est_method="rlm
         return k, b
 
 
-def fit_stochastic_linreg(u, s, us, ss, fit_2_gammas=True, err_cov=False):
+def fit_stochastic_linreg(
+    u: Union[np.ndarray, csr_matrix],
+    s: Union[np.ndarray, csr_matrix],
+    us: Union[np.ndarray, csr_matrix],
+    ss: Union[np.ndarray, csr_matrix],
+    fit_2_gammas: bool = True,
+    err_cov: bool = False,
+) -> float:
     """generalized method of moments: [u, 2*us + u] = gamma * [s, 2*ss - s].
 
-    Arguments
-    ---------
-    u: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of first moments (mean) of unspliced (or new) RNA expression.
-    s: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of first moments (mean) of spliced (or total) RNA expression.
-    us: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of second moments (uncentered co-variance) of unspliced/spliced (or new/total) RNA expression.
-    ss: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of second moments (uncentered variance) of spliced (or total) RNA expression.
+    Args:
+        u: A vector of first moments (mean) of unspliced (or new) RNA expression.
+        s: A vector of first moments (mean) of spliced (or total) RNA expression.
+        us: A vector of second moments (uncentered co-variance) of unspliced/spliced (or new/total) RNA expression.
+        ss: A vector of second moments (uncentered variance) of spliced (or total) RNA expression.
+        fit_2_gammas: If True, then fit two gammas for the two equations.
+        error_cov: If True, then compute the error covariance matrix.
 
-    Returns
-    -------
-    gamma: float
-        The estimated gamma.
+    Returns:
+        gamma: The estimated gamma.
     """
     y = np.vstack((u.flatten(), (u + 2 * us).flatten()))
     x = np.vstack((s.flatten(), (2 * ss - s).flatten()))
@@ -431,29 +377,26 @@ def fit_stochastic_linreg(u, s, us, ss, fit_2_gammas=True, err_cov=False):
     return gamma
 
 
-def fit_first_order_deg_lsq(t, l, bounds=(0, np.inf), fix_l0=False, beta_0=1):
+def fit_first_order_deg_lsq(
+    t: np.ndarray,
+    l: Union[np.ndarray, csr_matrix],
+    bounds: Tuple[float, float] = (0, np.inf),
+    fix_l0: bool = False,
+    beta_0: float = 1,
+) -> Tuple[float, float]:
     """Estimate beta with degradation data using least squares method.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    l: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of unspliced, labeled mRNA counts for each time point.
-    bounds: tuple
-        The bound for beta. The default is beta > 0.
-    fixed_l0: bool
-        True: l0 will be calculated by averaging the first column of l;
-        False: l0 is a parameter that will be estimated all together with beta using lsq.
-    beta_0: float
-        Initial guess for beta.
+    Args:
+        t: A vector of time points.
+        l: A vector of unspliced, labeled mRNA counts for each time point.
+        bounds: The bound for beta. The default is beta > 0.
+        fixed_l0: True: l0 will be calculated by averaging the first column of l;
+            False: l0 is a parameter that will be estimated all together with beta using lsq.
+        beta_0: Initial guess for beta.
 
-    Returns
-    -------
-    beta: float
-        The estimated value for beta.
-    l0: float
-        The estimated value for the initial spliced, labeled mRNA count.
+    Returns:
+        beta: The estimated value for beta.
+        l0: The estimated value for the initial spliced, labeled mRNA count.
     """
     l = l.A.flatten() if issparse(l) else l
 
@@ -472,25 +415,18 @@ def fit_first_order_deg_lsq(t, l, bounds=(0, np.inf), fix_l0=False, beta_0=1):
     return beta, l0
 
 
-def solve_first_order_deg(t, l):
+def solve_first_order_deg(t: np.ndarray, l: Union[np.ndarray, csr_matrix]) -> Tuple[float, float, float]:
     """Solve for the initial amount and the rate constant of a species (for example, labeled mRNA) with time-series data
     under first-order degration kinetics model.
 
-    Parameters
-    ----------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    l: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of labeled mRNA counts for each time point.
+    Args:
+        t: A vector of time points.
+        l: A vector of labeled mRNA counts for each time point.
 
-    Returns
-    -------
-    l0:: `float`
-        The intial counts of the species  (for example, labeled mRNA).
-    k: `float`
-        Degradation rate constant.
-    half_life: `float`
-        Half-life the species.
+    Returns:
+        l0: The intial counts of the species  (for example, labeled mRNA).
+        k: Degradation rate constant.
+        half_life: Half-life the species.
     """
 
     x = l.A.flatten() if issparse(l) else l
@@ -505,31 +441,28 @@ def solve_first_order_deg(t, l):
     return l0, k, half_life
 
 
-def fit_gamma_lsq(t, s, beta, u0, bounds=(0, np.inf), fix_s0=False):
+def fit_gamma_lsq(
+    t: np.ndarray,
+    s: Union[np.ndarray, csr_matrix],
+    beta: float,
+    u0: float,
+    bounds: Tuple[float, float] = (0, np.inf),
+    fix_s0: bool = False,
+) -> Tuple[float, float]:
     """Estimate gamma with degradation data using least squares method.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    s: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A vector of spliced, labeled mRNA counts for each time point.
-    beta: float
-        The value of beta.
-    u0: float
-        Initial number of unspliced mRNA.
-    bounds: tuple
-        The bound for gamma. The default is gamma > 0.
-    fixed_s0: bool
-        True: s0 will be calculated by averaging the first column of s;
-        False: s0 is a parameter that will be estimated all together with gamma using lsq.
+    Args:
+        t: A vector of time points.
+        s: A vector of spliced, labeled mRNA counts for each time point.
+        beta: The value of beta.
+        u0: Initial number of unspliced mRNA.
+        bounds: The bound for gamma. The default is gamma > 0.
+        fixed_s0: True: s0 will be calculated by averaging the first column of s;
+            False: s0 is a parameter that will be estimated all together with gamma using lsq.
 
-    Returns
-    -------
-    gamma: float
-        The estimated value for gamma.
-    s0: float
-        The estimated value for the initial spliced mRNA count.
+    Returns:
+        gamma: The estimated value for gamma.
+        s0: The estimated value for the initial spliced mRNA count.
     """
     s = s.A.flatten() if issparse(s) else s
 
@@ -552,23 +485,17 @@ def fit_gamma_lsq(t, s, beta, u0, bounds=(0, np.inf), fix_s0=False):
     return gamma, s0
 
 
-def fit_alpha_synthesis(t, u, beta):
+def fit_alpha_synthesis(t: np.ndarray, u: Union[np.ndarray, csr_matrix], beta: float) -> float:
     """Estimate alpha with synthesis data using linear regression with fixed zero intercept.
     It is assumed that u(0) = 0.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    u: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A matrix of unspliced mRNA counts. Dimension: cells x time points.
-    beta: float
-        The value of beta.
+    Args:
+        t: A vector of time points.
+        u: A matrix of unspliced mRNA counts. Dimension: cells x time points.
+        beta: The value of beta.
 
-    Returns
-    -------
-    alpha: float
-        The estimated value for alpha.
+    Returns:
+        alpha: The estimated value for alpha.
     """
     u = u.A if issparse(u) else u
 
@@ -581,31 +508,24 @@ def fit_alpha_synthesis(t, u, beta):
     return beta * np.mean(u) / np.mean(x)
 
 
-def fit_alpha_degradation(t, u, beta, intercept=False):
+def fit_alpha_degradation(
+    t: np.ndarray, u: Union[np.ndarray, csr_matrix], beta: float, intercept: bool = False
+) -> Tuple[float, float, float]:
     """Estimate alpha with degradation data using linear regression. This is a lsq version of the following function that
     constrains u0 to be larger than 0
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    u: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A matrix of unspliced mRNA counts. Dimension: cells x time points.
-    beta: float
-        The value of beta.
-    intercept: bool
-        If using steady state assumption for fitting, then:
-        True -- the linear regression is performed with an unfixed intercept;
-        False -- the linear regresssion is performed with a fixed zero intercept.
+    Args:
+        t: A vector of time points.
+        u: A matrix of unspliced mRNA counts. Dimension: cells x time points.
+        beta: The value of beta.
+        intercept: If using steady state assumption for fitting, then:
+            True -- the linear regression is performed with an unfixed intercept;
+            False -- the linear regresssion is performed with a fixed zero intercept.
 
-    Returns
-    -------
-    alpha: float
-        The estimated value for alpha.
-    u0: float
-        The initial unspliced mRNA count.
-    r2: float
-        Coefficient of determination or r square.
+    Returns:
+        alpha: The estimated value for alpha.
+        u0: The initial unspliced mRNA count.
+        r2: Coefficient of determination or r square.
     """
     x = u.A if issparse(u) else u
 
@@ -623,30 +543,23 @@ def fit_alpha_degradation(t, u, beta, intercept=False):
     return alpha, u0, r2
 
 
-def solve_alpha_degradation(t, u, beta, intercept=False):
+def solve_alpha_degradation(
+    t: np.ndarray, u: Union[np.ndarray, csr_matrix], beta: float, intercept: bool = False
+) -> Tuple[float, float, float]:
     """Estimate alpha with degradation data using linear regression.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    u: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A matrix of unspliced mRNA counts. Dimension: cells x time points.
-    beta: float
-        The value of beta.
-    intercept: bool
-        If using steady state assumption for fitting, then:
-        True -- the linear regression is performed with an unfixed intercept;
-        False -- the linear regresssion is performed with a fixed zero intercept.
+    Args:
+        t: A vector of time points.
+        u: A matrix of unspliced mRNA counts. Dimension: cells x time points.
+        beta: The value of beta.
+        intercept: If using steady state assumption for fitting, then:
+            True -- the linear regression is performed with an unfixed intercept;
+            False -- the linear regresssion is performed with a fixed zero intercept.
 
-    Returns
-    -------
-    alpha: float
-        The estimated value for alpha.
-    b: float
-        The initial unspliced mRNA count.
-    r2: float
-        Coefficient of determination or r square.
+    Returns:
+        alpha: The estimated value for alpha.
+        b: The initial unspliced mRNA count.
+        r2: Coefficient of determination or r square.
     """
     u = u.A if issparse(u) else u
 
@@ -676,29 +589,26 @@ def solve_alpha_degradation(t, u, beta, intercept=False):
     return k * beta, b, r2
 
 
-def fit_alpha_beta_synthesis(t, l, bounds=(0, np.inf), alpha_0=1, beta_0=1):
+def fit_alpha_beta_synthesis(
+    t: np.ndarray,
+    l: Union[np.ndarray, csr_matrix],
+    bounds: Tuple[float, float] = (0, np.inf),
+    alpha_0: float = 1,
+    beta_0: float = 1,
+) -> Tuple[float, float]:
     """Estimate alpha and beta with synthesis data using least square method.
     It is assumed that u(0) = 0.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    l: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A matrix of labeled mRNA counts. Dimension: cells x time points.
-    bounds: tuple
-        The bound for alpha and beta. The default is alpha / beta > 0.
-    alpha_0: float
-        Initial guess for alpha.
-    beta_0: float
-        Initial guess for beta.
+    Args:
+        t: A vector of time points.
+        l: A matrix of labeled mRNA counts. Dimension: cells x time points.
+        bounds: The bound for alpha and beta. The default is alpha / beta > 0.
+        alpha_0: Initial guess for alpha.
+        beta_0: Initial guess for beta.
 
-    Returns
-    -------
-    alpha: float
-        The estimated value for alpha.
-    beta: float
-        The estimated value for beta.
+    Returns:
+        alpha: The estimated value for alpha.
+        beta: The estimated value for beta.
     """
     l = l.A if issparse(l) else l
 
@@ -710,33 +620,29 @@ def fit_alpha_beta_synthesis(t, l, bounds=(0, np.inf), alpha_0=1, beta_0=1):
     return ret.x[0], ret.x[1]
 
 
-def fit_all_synthesis(t, l, bounds=(0, np.inf), alpha_0=1, beta_0=1, gamma_0=1):
+def fit_all_synthesis(
+    t: np.ndarray,
+    l: Union[np.ndarray, csr_matrix],
+    bounds: Tuple[float, float] = (0, np.inf),
+    alpha_0: float = 1,
+    beta_0: float = 1,
+    gamma_0: float = 1,
+) -> Tuple[float, float, float]:
     """Estimate alpha, beta and gamma with synthesis data using least square method.
     It is assumed that u(0) = 0 and s(0) = 0.
 
-    Arguments
-    ---------
-    t: :class:`~numpy.ndarray`
-        A vector of time points.
-    l: :class:`~numpy.ndarray` or sparse `csr_matrix`
-        A matrix of labeled mRNA counts. Dimension: cells x time points.
-    bounds: tuple
-        The bound for alpha and beta. The default is alpha / beta > 0.
-    alpha_0: float
-        Initial guess for alpha.
-    beta_0: float
-        Initial guess for beta.
-    gamma_0: float
-        Initial guess for gamma.
+    Args:
+        t: A vector of time points.
+        l: A matrix of labeled mRNA counts. Dimension: cells x time points.
+        bounds: The bound for alpha and beta. The default is alpha / beta > 0.
+        alpha_0: Initial guess for alpha.
+        beta_0: Initial guess for beta.
+        gamma_0: Initial guess for gamma.
 
-    Returns
-    -------
-    alpha: float
-        The estimated value for alpha.
-    beta: float
-        The estimated value for beta.
-    gamma: float
-        The estimated value for gamma.
+    Returns:
+        alpha: The estimated value for alpha.
+        beta: The estimated value for beta.
+        gamma: The estimated value for gamma.
     """
     l = l.A if issparse(l) else l
 
@@ -748,22 +654,18 @@ def fit_all_synthesis(t, l, bounds=(0, np.inf), alpha_0=1, beta_0=1, gamma_0=1):
     return ret.x[0], ret.x[1], ret.x[2]
 
 
-def concat_time_series_matrices(mats, t=None):
+def concat_time_series_matrices(
+    mats: np.ndarray, t: Optional[Union[np.ndarray, List]] = None
+) -> Tuple[np.ndarray, np.ndarray]:
     """Concatenate a list of gene x cell matrices into a single matrix.
 
-    Arguments
-    ---------
-    mats: :class:`~numpy.ndarray`
-        A list of gene x cell matrices. The length of the list equals the number of time points
-    t: :class:`~numpy.ndarray` or list
-        A vector or list of time points
+    Args:
+        mats: A list of gene x cell matrices. The length of the list equals the number of time points
+        t: A vector or list of time points
 
-    Returns
-    -------
-    ret_mat: :class:`~numpy.ndarray`
-        Concatenated gene x cell matrix.
-    ret_t: :class:`~numpy.ndarray`
-        A vector of time point for each cell.
+    Returns:
+        ret_mat: Concatenated gene x cell matrix.
+        ret_t: A vector of time point for each cell.
     """
     ret_mat = np.concatenate(mats, axis=1)
     if t is not None:
@@ -823,27 +725,22 @@ def compute_velocity_labeling(N, R, K, tau):
     return elem_prod(Beta_or_gamma, N) / K - elem_prod(Beta_or_gamma, R)
 
 
-def compute_bursting_properties(M_t, phi, gamma):
+def compute_bursting_properties(
+    M_t: Union[np.ndarray, float], phi: float, gamma: float
+) -> Tuple[Union[np.ndarray, float], float]:
     """Compute bursting frequency and size for the negative binomial regression model.
     The equations come from:
     Anton J.M. Larsson et al. Genomic encoding of transcriptional burst kinetics, Nature volume 565, pages251–254(2019)
 
-    Arguments
-    ---------
-    M_t: :class:`~numpy.ndarray` or float
-        The first moment of the number of total mRNA.
-        If an array is passed, a cell-wise bursting size will be calculated.
-    phi: float
-        The reciprocal dispersion parameter.
-    gamma: float
-        Degradation rate constant.
+    Args:
+        M_t: The first moment of the number of total mRNA.
+            If an array is passed, a cell-wise bursting size will be calculated.
+        phi: The reciprocal dispersion parameter.
+        gamma: Degradation rate constant.
 
-    Returns
-    -------
-    bs: :class:`~numpy.ndarray` or float
-        Bursting size
-    bf: float
-        Bursting frequency
+    Returns:
+        bs: Bursting size
+        bf: Bursting frequency
     """
     bs = M_t * phi
     bf = gamma / phi
