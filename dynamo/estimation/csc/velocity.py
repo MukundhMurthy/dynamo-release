@@ -17,6 +17,11 @@ from ...tools.utils import (
 )
 from .utils_velocity import *
 
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
 # from sklearn.cluster import KMeans
 # from sklearn.neighbors import NearestNeighbors
 
@@ -24,33 +29,25 @@ from .utils_velocity import *
 class Velocity:
     """The class that computes RNA/protein velocity given unknown parameters.
 
-    Arguments
-    ---------
-        alpha: :class:`~numpy.ndarray`
-            A matrix of transcription rate.
-        beta: :class:`~numpy.ndarray`
-            A vector of splicing rate constant for each gene.
-        gamma: :class:`~numpy.ndarray`
-            A vector of spliced mRNA degradation rate constant for each gene.
-        eta: :class:`~numpy.ndarray`
-            A vector of protein synthesis rate constant for each gene.
-        delta: :class:`~numpy.ndarray`
-            A vector of protein degradation rate constant for each gene.
-        t: :class:`~numpy.ndarray` or None (default: None)
-            A vector of the measured time points for cells
-        estimation: :class:`~ss_estimation`
-            An instance of the estimation class. If this not None, the parameters will be taken from this class instead of the input arguments.
+    Args:
+        alpha: A matrix of transcription rate.
+        beta: A vector of splicing rate constant for each gene.
+        gamma: A vector of spliced mRNA degradation rate constant for each gene.
+        eta: A vector of protein synthesis rate constant for each gene.
+        delta: A vector of protein degradation rate constant for each gene.
+        t: A vector of the measured time points for cells
+        estimation: An instance of the estimation class. If this not None, the parameters will be taken from this class instead of the input arguments.
     """
 
     def __init__(
         self,
-        alpha=None,
-        beta=None,
-        gamma=None,
-        eta=None,
-        delta=None,
-        t=None,
-        estimation=None,
+        alpha: Optional[np.ndarray] = None,
+        beta: Optional[np.ndarray] = None,
+        gamma: Optional[np.ndarray] = None,
+        eta: Optional[np.ndarray] = None,
+        delta: Optional[np.ndarray] = None,
+        t: Optional[np.ndarray] = None,
+        estimation: Optional["ss_estimation"] = None,
     ):
         if estimation is not None:
             self.parameters = {}
@@ -70,21 +67,19 @@ class Velocity:
                 "t": t,
             }
 
-    def vel_u(self, U, repeat=None, update_alpha=True):
+    def vel_u(
+        self, U: Union[np.ndarray, csr_matrix], repeat: Optional[bool] = None, update_alpha=True
+    ) -> Union[np.ndarray, csr_matrix]:
         """Calculate the unspliced mRNA velocity.
 
-        Arguments
-        ---------
-            U: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of unspliced mRNA count. Dimension: genes x cells.
-            repeat: bool or None
-                Whether to use average alpha or cell-wise alpha with the formula:
+        Args:
+            U: A matrix of unspliced mRNA count. Dimension: genes x cells.
+            repeat: Whether to use average alpha or cell-wise alpha with the formula:
                 $a = \frac{n \gamma}{1 - e^{-\gamma t}}$.
+            update_alpha: Whether to store updated `alpha` in `self.parameters`.
 
-        Returns
-        -------
-            V: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                Each column of V is a velocity vector for the corresponding cell. Dimension: genes x cells.
+        Returns:
+            V: Each column of V is a velocity vector for the corresponding cell. Dimension: genes x cells.
         """
 
         t = self.parameters["t"]
@@ -167,20 +162,17 @@ class Velocity:
 
         return V
 
-    def vel_s(self, U, S):
-        """Calculate the unspliced mRNA velocity.
+    def vel_s(
+        self, U: Union[np.ndarray, csr_matrix], S: Union[np.ndarray, csr_matrix]
+    ) -> Union[np.ndarray, csr_matrix]:
+        """Calculate the spliced mRNA velocity.
 
-        Arguments
-        ---------
-            U: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of unspliced mRNA counts. Dimension: genes x cells.
-            S: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of spliced mRNA counts. Dimension: genes x cells.
+        Args:
+            U: A matrix of unspliced mRNA counts. Dimension: genes x cells.
+            S: A matrix of spliced mRNA counts. Dimension: genes x cells.
 
-        Returns
-        -------
-            V: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                Each column of V is a velocity vector for the corresponding cell. Dimension: genes x cells.
+        Returns:
+            V: Each column of V is a velocity vector for the corresponding cell. Dimension: genes x cells.
         """
 
         t = self.parameters["t"]
@@ -236,20 +228,17 @@ class Velocity:
             V = np.nan
         return V
 
-    def vel_p(self, S, P):
+    def vel_p(
+        self, S: Union[np.ndarray, csr_matrix], P: Union[np.ndarray, csr_matrix]
+    ) -> Union[np.ndarray, csr_matrix]:
         """Calculate the protein velocity.
 
-        Arguments
-        ---------
-            S: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of spliced mRNA counts. Dimension: genes x cells.
-            P: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of protein counts. Dimension: genes x cells.
+        Args:
+            S: A matrix of spliced mRNA counts. Dimension: genes x cells.
+            P: A matrix of protein counts. Dimension: genes x cells.
 
-        Returns
-        -------
-            V: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                Each column of V is a velocity vector for the corresponding cell. Dimension: genes x cells.
+        Returns:
+            V: Each column of V is a velocity vector for the corresponding cell. Dimension: genes x cells.
         """
 
         t = self.parameters["t"]
@@ -292,13 +281,11 @@ class Velocity:
             V = np.nan
         return V
 
-    def get_n_cells(self):
+    def get_n_cells(self) -> int:
         """Get the number of cells if the parameter alpha is given.
 
-        Returns
-        -------
-            n_cells: int
-                The second dimension of the alpha matrix, if alpha is given.
+        Returns:
+            n_cells: The second dimension of the alpha matrix, if alpha is given.
         """
         if self.parameters["alpha"] is not None:
             n_cells = self.parameters["alpha"].shape[1]
@@ -306,13 +293,11 @@ class Velocity:
             n_cells = np.nan
         return n_cells
 
-    def get_n_genes(self):
+    def get_n_genes(self) -> int:
         """Get the number of genes.
 
-        Returns
-        -------
-            n_genes: int
-                The first dimension of the alpha matrix, if alpha is given. Or, the length of beta, gamma, eta, or delta, if they are given.
+        Returns:
+            n_genes: The first dimension of the alpha matrix, if alpha is given. Or, the length of beta, gamma, eta, or delta, if they are given.
         """
         if self.parameters["alpha"] is not None:
             n_genes = self.parameters["alpha"].shape[0]
@@ -332,8 +317,7 @@ class Velocity:
 class ss_estimation:
     """The class that estimates parameters with input data.
 
-    Arguments
-    ---------
+    Arguments:
         U: :class:`~numpy.ndarray` or sparse `csr_matrix`
             A matrix of unspliced mRNA count.
         Ul: :class:`~numpy.ndarray` or sparse `csr_matrix`
@@ -374,8 +358,7 @@ class ss_estimation:
             Number of cores to run the estimation. If cores is set to be > 1, multiprocessing will be used to parallel
             the parameter estimation.
 
-    Returns
-    ----------
+    Returns:
         t: :class:`~ss_estimation`
             A vector of time points.
         data: `dict`
@@ -397,23 +380,23 @@ class ss_estimation:
 
     def __init__(
         self,
-        U=None,
-        Ul=None,
-        S=None,
-        Sl=None,
-        P=None,
-        US=None,
-        S2=None,
-        conn=None,
-        t=None,
-        ind_for_proteins=None,
-        model="stochastic",
-        est_method="gmm",
-        experiment_type="deg",
-        assumption_mRNA=None,
-        assumption_protein="ss",
-        concat_data=True,
-        cores=1,
+        U: Optional[Union[np.ndarray, csr_matrix]] = None,
+        Ul: Optional[Union[np.ndarray, csr_matrix]] = None,
+        S: Optional[Union[np.ndarray, csr_matrix]] = None,
+        Sl: Optional[Union[np.ndarray, csr_matrix]] = None,
+        P: Optional[Union[np.ndarray, csr_matrix]] = None,
+        US: Optional[Union[np.ndarray, csr_matrix]] = None,
+        S2: Optional[Union[np.ndarray, csr_matrix]] = None,
+        conn: Optional[Union[np.ndarray, csr_matrix]] = None,
+        t: Optional["ss_estimation"] = None,
+        ind_for_proteins: Optional[np.ndarray] = None,
+        model: str = "stochastic",
+        est_method: str = "gmm",
+        experiment_type: str = "deg",
+        assumption_mRNA: Optional[str] = None,
+        assumption_protein: str = "ss",
+        concat_data: bool = True,
+        cores: int = 1,
         **kwargs
     ):
 
@@ -469,16 +452,15 @@ class ss_estimation:
 
     def fit(
         self,
-        intercept=False,
-        perc_left=None,
-        perc_right=5,
-        clusters=None,
-        one_shot_method="combined",
+        intercept: bool = False,
+        perc_left: Optional[float] = None,
+        perc_right: float = 5,
+        clusters: Optional[List] = None,
+        one_shot_method: str = "combined",
     ):
         """Fit the input data to estimate all or a subset of the parameters
 
-        Arguments
-        ---------
+        Args:
             intercept: `bool`
                 If using steady state assumption for fitting, then:
                 True -- the linear regression is performed with an unfixed intercept;
@@ -489,6 +471,7 @@ class ss_estimation:
                 The percentage of samples included in the linear regression in the right tail. If set to None, then all the samples are included.
             clusters: `list`
                 A list of n clusters, each element is a list of indices of the samples which belong to this cluster.
+            one_shot_method:
         """
         n_genes = self.get_n_genes()
         cores = max(1, int(self.cores))
@@ -1552,40 +1535,36 @@ class ss_estimation:
                     _,  # self.aux_param["delta_logLL"],
                 ) = (delta, delta_intercept, delta_r2, delta_logLL)
 
-    def fit_gamma_steady_state(self, u, s, intercept=True, perc_left=None, perc_right=5, normalize=True):
+    def fit_gamma_steady_state(
+        self,
+        u: Union[np.ndarray, csr_matrix],
+        s: Union[np.ndarray, csr_matrix],
+        intercept: bool = True,
+        perc_left: Optional[float] = None,
+        perc_right: Optional[float] = 5,
+        normalize: bool = True,
+    ) -> Tuple[float, float, float, float, float, float]:
         """Estimate gamma using linear regression based on the steady state assumption.
 
-        Arguments
-        ---------
-            u: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of unspliced mRNA counts. Dimension: genes x cells.
-            s: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of spliced mRNA counts. Dimension: genes x cells.
-            intercept: bool
-                If using steady state assumption for fitting, then:
+        Args:
+            u: A matrix of unspliced mRNA counts. Dimension: genes x cells.
+            s: A matrix of spliced mRNA counts. Dimension: genes x cells.
+            intercept: If using steady state assumption for fitting, then:
                 True -- the linear regression is performed with an unfixed intercept;
                 False -- the linear regresssion is performed with a fixed zero intercept.
-            perc_left: float
-                The percentage of samples included in the linear regression in the left tail. If set to None, then all the
+            perc_left: The percentage of samples included in the linear regression in the left tail. If set to None, then all the
                 left samples are excluded.
-            perc_right: float
-                The percentage of samples included in the linear regression in the right tail. If set to None, then all the
+            perc_right: The percentage of samples included in the linear regression in the right tail. If set to None, then all the
                 samples are included.
-            normalize: bool
-                Whether to first normalize the data.
+            normalize: Whether to first normalize the data.
 
-        Returns
-        -------
-            k: float
-                The slope of the linear regression model, which is gamma under the steady state assumption.
-            b: float
-                The intercept of the linear regression model.
-            r2: float
-                Coefficient of determination or r square for the extreme data points.
-            r2: float
-                Coefficient of determination or r square for the extreme data points.
-            all_r2: float
-                Coefficient of determination or r square for all data points.
+        Returns:
+            k: The slope of the linear regression model, which is gamma under the steady state assumption.
+            b: The intercept of the linear regression model.
+            r2: Coefficient of determination or r square for the extreme data points.
+            all_r2: Coefficient of determination or r square for all data points.
+            logLL: Log likelihood for the extreme data points.
+            all_logLL: Log likelihood for all data points.
         """
         if intercept and perc_left is None:
             perc_left = perc_right
@@ -1614,20 +1593,19 @@ class ss_estimation:
 
     def fit_gamma_stochastic(
         self,
-        est_method,
-        u,
-        s,
-        us,
-        ss,
-        perc_left=None,
-        perc_right=5,
-        normalize=True,
-    ):
-        """Estimate gamma using GMM (generalized method of moments) or negbin distrubtion based on the steady state assumption.
+        est_method: Literal["gmm", "negbin"],
+        u: Union[np.ndarray, csr_matrix],
+        s: Union[np.ndarray, csr_matrix],
+        us: Union[np.ndarray, csr_matrix],
+        ss: Union[np.ndarray, csr_matrix],
+        perc_left: Optional[float] = None,
+        perc_right: Optional[float] = 5,
+        normalize: bool = True,
+    ) -> Tuple[float, float, float, float, float, float, float, float]:
+        """Estimate gamma using GMM (generalized method of moments) or negbin distribution based on the steady state assumption.
 
-        Arguments
-        ---------
-            est_method: `str` {`gmm`, `negbin`} The estimation method to be used when using the `stochastic` model.
+        Args:
+            est_method: The estimation method to be used when using the `stochastic` model.
                 * Available options when the `model` is 'ss' include:
                 (2) 'gmm': The new generalized methods of moments from us that is based on master equations, similar to the
                 "moment" model in the excellent scVelo package;
@@ -1643,33 +1621,23 @@ class ss_estimation:
                 (including RNA half-life), it additionally returns R-squared (either just for extreme data points or all data points)
                 as well as the log-likelihood of the fitting, which will be used for transition matrix and velocity embedding.
                 All `est_method` uses least square to estimate optimal parameters with latin cubic sampler for initial sampling.
-            u: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of unspliced mRNA counts. Dimension: genes x cells.
-            s: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of spliced mRNA counts. Dimension: genes x cells.
-            us: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of unspliced mRNA counts. Dimension: genes x cells.
-            ss: :class:`~numpy.ndarray` or sparse `csr_matrix`
-                A matrix of spliced mRNA counts. Dimension: genes x cells.
-            perc_left: float
-                The percentage of samples included in the linear regression in the left tail. If set to None, then all the left samples are excluded.
-            perc_right: float
-                The percentage of samples included in the linear regression in the right tail. If set to None, then all the samples are included.
-            normalize: bool
-                Whether to first normalize the
+            u: A matrix of unspliced mRNA counts. Dimension: genes x cells.
+            s: A matrix of spliced mRNA counts. Dimension: genes x cells.
+            us: A matrix of unspliced mRNA counts. Dimension: genes x cells.
+            ss: A matrix of spliced mRNA counts. Dimension: genes x cells.
+            perc_left: The percentage of samples included in the linear regression in the left tail. If set to None, then all the left samples are excluded.
+            perc_right: The percentage of samples included in the linear regression in the right tail. If set to None, then all the samples are included.
+            normalize: Whether to first normalize the counts before determining extreme data points.
 
-        Returns
-        -------
-            k: float
-                The slope of the linear regression model, which is gamma under the steady state assumption.
-            b: float
-                The intercept of the linear regression model.
-            r2: float
-                Coefficient of determination or r square for the extreme data points.
-            r2: float
-                Coefficient of determination or r square for the extreme data points.
-            all_r2: float
-                Coefficient of determination or r square for all data points.
+        Returns:
+            k: The slope of the linear regression model, which is gamma under the steady state assumption.
+            b: The intercept of the linear regression model.
+            r2: Coefficient of determination or r square for the extreme data points.
+            all_r2: Coefficient of determination or r square for all data points.
+            logLL: Coefficient of determination or r square for all data points.
+            all_logLL: Coefficient of determination or r square for all data points.
+            bs: The bursting size of the negative binomial model
+            bf: The bursting frequency of the negative binomial model
         """
         u = u.A.flatten() if issparse(u) else u.flatten()
         s = s.A.flatten() if issparse(s) else s.flatten()
@@ -1700,28 +1668,21 @@ class ss_estimation:
 
         return (k, 0, r2, all_r2, logLL, all_logLL, bs, bf)
 
-    def fit_beta_gamma_lsq(self, t, U, S):
+    def fit_beta_gamma_lsq(
+        self, t: np.ndarray, U: np.ndarray, S: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, float, float]:
         """Estimate beta and gamma with the degradation data using the least squares method.
 
-        Arguments
-        ---------
-            t: :class:`~numpy.ndarray`
-                A vector of time points.
-            U: :class:`~numpy.ndarray`
-                A matrix of unspliced mRNA counts. Dimension: genes x cells.
-            S: :class:`~numpy.ndarray`
-                A matrix of spliced mRNA counts. Dimension: genes x cells.
+        Args:
+            t: A vector of time points.
+            U: A matrix of unspliced mRNA counts. Dimension: genes x cells.
+            S: A matrix of spliced mRNA counts. Dimension: genes x cells.
 
-        Returns
-        -------
-            beta: :class:`~numpy.ndarray`
-                A vector of betas for all the genes.
-            gamma: :class:`~numpy.ndarray`
-                A vector of gammas for all the genes.
-            u0: float
-                Initial value of u.
-            s0: float
-                Initial value of s.
+        Returns:
+            beta: A vector of betas for all the genes.
+            gamma: A vector of gammas for all the genes.
+            u0: Initial value of u.
+            s0: Initial value of s.
         """
         n = U.shape[0]  # self.get_n_genes(data=U)
         beta = np.zeros(n)
@@ -1736,22 +1697,16 @@ class ss_estimation:
                 gamma[i], s0[i] = np.nan, np.nan
         return beta, gamma, u0, s0
 
-    def fit_gamma_nosplicing_lsq(self, t, L):
+    def fit_gamma_nosplicing_lsq(self, t: np.ndarray, L: np.ndarray) -> Tuple[np.ndarray, float]:
         """Estimate gamma with the degradation data using the least squares method when there is no splicing data.
 
-        Arguments
-        ---------
-            t: :class:`~numpy.ndarray`
-                A vector of time points.
-            L: :class:`~numpy.ndarray`
-                A matrix of labeled mRNA counts. Dimension: genes x cells.
+        Args:
+            t: A vector of time points.
+            L: A matrix of labeled mRNA counts. Dimension: genes x cells.
 
-        Returns
-        -------
-            gamma: :class:`~numpy.ndarray`
-                A vector of gammas for all the genes.
-            l0: float
-                The estimated value for the initial spliced, labeled mRNA count.
+        Returns:
+            gamma: A vector of gammas for all the genes.
+            l0: The estimated value for the initial spliced, labeled mRNA count.
         """
         n = L.shape[0]  # self.get_n_genes(data=L)
         gamma = np.zeros(n)
@@ -1761,37 +1716,34 @@ class ss_estimation:
             gamma[i], l0[i] = fit_first_order_deg_lsq(t, L[i].A[0]) if issparse(L) else fit_first_order_deg_lsq(t, L[i])
         return gamma, l0
 
-    def solve_alpha_mix_std_stm(self, t, ul, beta, clusters=None, alpha_time_dependent=True):
+    def solve_alpha_mix_std_stm(
+        self,
+        t: Union[List, np.ndarray],
+        ul: np.ndarray,
+        beta: np.ndarray,
+        clusters: Optional[List] = None,
+        alpha_time_dependent: bool = True,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Estimate the steady state transcription rate and analytically calculate the stimulation transcription rate
         given beta and steady state alpha for a mixed steady state and stimulation labeling experiment.
 
         This approach assumes the same constant beta or gamma for both steady state or stimulation period.
 
-        Arguments
-        ----------
-            t: `list` or `numpy.ndarray`
-                Time period for stimulation state labeling for each cell.
-            ul:
-                A vector of labeled RNA amount in each cell.
-            beta: `numpy.ndarray`
-                A list of splicing rate for genes.
-            clusters: `list`
-                A list of n clusters, each element is a list of indices of the samples which belong to this cluster.
-            alpha_time_dependent: `bool`
-                Whether or not to model the simulation alpha rate as a time dependent variable.
+        Args:
+            t: Time period for stimulation state labeling for each cell.
+            ul: A vector of labeled RNA amount in each cell.
+            beta: A list of splicing rate for genes.
+            clusters: A list of n clusters, each element is a list of indices of the samples which belong to this cluster.
+            alpha_time_dependent: Whether or not to model the stimulation alpha rate as a time dependent variable.
 
-        Returns
-        -------
-            alpha_std, alpha_stm: `numpy.ndarray`, `numpy.ndarray`
-                The constant steady state transcription rate (alpha_std) or time-dependent or time-independent (determined by
+        Returns:
+            alpha_std, alpha_stm: The constant steady state transcription rate (alpha_std) and the time-independent (determined by
                 alpha_time_dependent) transcription rate (alpha_stm)
         """
 
         # calculate alpha initial guess:
         t = np.array(t) if type(t) is list else t
-        t_std, t_stm, t_uniq, t_max, t_min = (
-            np.max(t) - t,
-            t,
+        t_uniq, t_max, t_min = (
             np.unique(t),
             np.max(t),
             np.min(t),
@@ -1820,24 +1772,19 @@ class ss_estimation:
 
         return (alpha_std, alpha_stm)
 
-    def fit_alpha_oneshot(self, t, U, beta, clusters=None):
+    def fit_alpha_oneshot(
+        self, t: float, U: np.ndarray, beta: np.ndarray, clusters: Optional[List] = None
+    ) -> np.ndarray:
         """Estimate alpha with the one-shot data.
 
-        Arguments
-        ---------
-            t: float
-                labelling duration.
-            U: :class:`~numpy.ndarray`
-                A matrix of unspliced mRNA counts. Dimension: genes x cells.
-            beta: :class:`~numpy.ndarray`
-                A vector of betas for all the genes.
-            clusters: list
-                A list of n clusters, each element is a list of indices of the samples which belong to this cluster.
+        Args:
+            t: labelling duration.
+            U: A matrix of unspliced mRNA counts. Dimension: genes x cells.
+            beta: A vector of betas for all the genes.
+            clusters: A list of n clusters, each element is a list of indices of the samples which belong to this cluster.
 
-        Returns
-        -------
-            alpha: :class:`~numpy.ndarray`
-                A numpy array with the dimension of n_genes x clusters.
+        Returns:
+            alpha: A numpy array with the dimension of n_genes x clusters.
         """
         n_genes, n_cells = U.shape
         if clusters is None:
@@ -1855,7 +1802,7 @@ class ss_estimation:
                     alpha[j, i] = np.nan
         return alpha
 
-    def concatenate_data(self):
+    def concatenate_data(self) -> None:
         """Concatenate available data into a single matrix.
 
         See "concat_time_series_matrices" for details.
@@ -1871,7 +1818,9 @@ class ss_estimation:
                 else:
                     self.data[k] = concat_time_series_matrices(self.data[k])
 
-    def get_n_genes(self, key=None, data=None):
+    def get_n_genes(
+        self, key: Optional[str] = None, data: Optional[Union[np.ndarray, List[Union[np.ndarray, csr_matrix]]]] = None
+    ) -> int:
         """Get the number of genes."""
         if data is None:
             if key is None:
@@ -1886,28 +1835,25 @@ class ss_estimation:
             ret = data.shape[0]
         return ret
 
-    def set_parameter(self, name, value):
+    def set_parameter(self, name: str, value: np.ndarray) -> None:
         """Set the value for the specified parameter.
 
-        Arguments
-        ---------
-            name: string
-                The name of the parameter. E.g. 'beta'.
-            value: :class:`~numpy.ndarray`
-                A vector of values for the parameter to be set to.
+        Args:
+            name: The name of the parameter. E.g. 'beta'.
+            value: A vector of values for the parameter to be set to.
         """
         if len(np.shape(value)) == 0:
             value = value * np.ones(self.get_n_genes())
         self.parameters[name] = value
 
-    def _exist_data(self, *data_names):
+    def _exist_data(self, *data_names) -> Union[bool, np.ndarray]:
         if len(data_names) == 1:
             ret = self.data[data_names[0]] is not None
         else:
             ret = np.array([self.data[k] is not None for k in data_names], dtype=bool)
         return ret
 
-    def _exist_parameter(self, *param_names):
+    def _exist_parameter(self, *param_names) -> Union[bool, np.ndarray]:
         if len(param_names) == 1:
             ret = self.parameters[param_names[0]] is not None
         else:
@@ -1917,7 +1863,7 @@ class ss_estimation:
             )
         return ret
 
-    def get_exist_data_names(self):
+    def get_exist_data_names(self) -> List:
         """Get the names of all the data that are not 'None'."""
         ret = []
         for k, v in self.data.items():
